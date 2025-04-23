@@ -18,11 +18,15 @@ use std::{
 
 use objc2::{msg_send, rc::Retained, runtime::AnyObject as Object};
 use objc2_app_kit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSWindow};
-use objc2_foundation::{MainThreadMarker, NSAutoreleasePool, NSSize};
+use objc2_foundation::{MainThreadMarker, NSAutoreleasePool, NSObjectProtocol, NSSize};
+use objc2_user_notifications::{
+  UNNotificationDefaultActionIdentifier, UNNotificationDismissActionIdentifier,
+  UNTextInputNotificationResponse,
+};
 
 use crate::{
   dpi::LogicalSize,
-  event::{Event, StartCause, WindowEvent},
+  event::{Event, NotificationResponseAction, StartCause, WindowEvent},
   event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
   platform::macos::ActivationPolicy,
   platform_impl::{
@@ -309,6 +313,34 @@ impl AppState {
 
   pub fn open_urls(urls: Vec<url::Url>) {
     HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::Opened { urls }));
+  }
+
+  /// Called when user clicked on a notification
+  /// TODO: also include other properties of https://developer.apple.com/documentation/usernotifications/unnotificationresponse?language=objc
+  /// TODO: include userInfo of the notification the user clicked on
+  pub fn receive_notification_response(response: objc2_user_notifications::UNNotificationResponse) {
+    unsafe {
+      let action_id = response.actionIdentifier();
+      let action: NotificationResponseAction = match &*action_id {
+        a if a == UNNotificationDefaultActionIdentifier => NotificationResponseAction::Default,
+        a if a == UNNotificationDismissActionIdentifier => NotificationResponseAction::Dismiss,
+        _ => NotificationResponseAction::Other(action_id.to_string()),
+      };
+
+      let user_text = response
+        .downcast_ref::<UNTextInputNotificationResponse>()
+        .map(|text_response| text_response.userText().to_string());
+
+      let notification = response.notification();
+
+      let notification_id = notification.request().identifier().to_string();
+
+      HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NotificationResponse {
+        notification_id,
+        action,
+        user_text,
+      }));
+    }
   }
 
   pub fn reopen(has_visible_windows: bool) {

@@ -142,6 +142,23 @@ pub enum Event<'a, T: 'static> {
   /// - **Other**: Unsupported.
   #[non_exhaustive]
   Reopen { has_visible_windows: bool },
+
+  /// Emmited when user clicked on a notification
+  ///
+  /// ## Platform-specific
+  ///
+  /// - **macOS**: https://developer.apple.com/documentation/usernotifications/unusernotificationcenterdelegate/usernotificationcenter(_:didreceive:withcompletionhandler:)?language=objc
+  /// - **Other**: Unsupported.
+  #[non_exhaustive]
+  NotificationResponse {
+    notification_id: String,
+    action: NotificationResponseAction,
+    /// The text that the user typed in as reponse
+    ///
+    /// corresponds to [UNTextInputNotificationResponse.userText](https://developer.apple.com/documentation/usernotifications/untextinputnotificationresponse/usertext?language=objc)
+    user_text: Option<String>,
+    // TODO: include userInfo of the notification the user clicked on
+  },
 }
 
 impl<T: Clone> Clone for Event<'static, T> {
@@ -165,6 +182,7 @@ impl<T: Clone> Clone for Event<'static, T> {
       Suspended => Suspended,
       Resumed => Resumed,
       Opened { urls } => Opened { urls: urls.clone() },
+      NotificationResponse { .. } => self.clone(),
       Reopen {
         has_visible_windows,
       } => Reopen {
@@ -189,6 +207,15 @@ impl<'a, T> Event<'a, T> {
       Suspended => Ok(Suspended),
       Resumed => Ok(Resumed),
       Opened { urls } => Ok(Opened { urls }),
+      NotificationResponse {
+        notification_id,
+        action,
+        user_text,
+      } => Ok(NotificationResponse {
+        notification_id,
+        action,
+        user_text,
+      }),
       Reopen {
         has_visible_windows,
       } => Ok(Reopen {
@@ -215,6 +242,15 @@ impl<'a, T> Event<'a, T> {
       Suspended => Some(Suspended),
       Resumed => Some(Resumed),
       Opened { urls } => Some(Opened { urls }),
+      NotificationResponse {
+        notification_id,
+        action,
+        user_text,
+      } => Some(NotificationResponse {
+        notification_id,
+        action,
+        user_text,
+      }),
       Reopen {
         has_visible_windows,
       } => Some(Reopen {
@@ -925,4 +961,22 @@ pub enum MouseScrollDelta {
   /// supported by the device (eg. a touchpad) and
   /// platform.
   PixelDelta(PhysicalPosition<f64>),
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum NotificationResponseAction {
+  /// When user clicks on the notification
+  ///
+  /// ## Platform Specific
+  /// - MacOS: corresponds to [UNNotificationDefaultActionIdentifier](https://developer.apple.com/documentation/usernotifications/unnotificationdefaultactionidentifier?language=objc)
+  Default,
+  /// When user closes the notification
+  ///
+  /// ## Platform Specific
+  /// - MacOS: corresponds to [UNNotificationDismissActionIdentifier](https://developer.apple.com/documentation/usernotifications/unnotificationdismissactionidentifier?language=objc)
+  Dismiss,
+  /// The identifier string of the action that the user selected, if it is not one of the other actions in [NotificationResponseAction]
+  Other(String),
 }

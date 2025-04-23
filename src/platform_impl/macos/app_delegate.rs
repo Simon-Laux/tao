@@ -64,6 +64,10 @@ lazy_static! {
       application_open_urls as extern "C" fn(_, _, _, _),
     );
     decl.add_method(
+      sel!(userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:),
+      user_notification_center_did_receive_response as extern "C" fn(_, _, _, _, _),
+    );
+    decl.add_method(
       sel!(applicationShouldHandleReopen:hasVisibleWindows:),
       application_should_handle_reopen as extern "C" fn(_, _, _, _) -> _,
     );
@@ -134,6 +138,23 @@ extern "C" fn application_open_urls(_: &Object, _: Sel, _: id, urls: &NSArray<NS
   trace!("Get `application:openURLs:` URLs: {:?}", urls);
   AppState::open_urls(urls);
   trace!("Completed `application:openURLs:`");
+}
+
+extern "C" fn user_notification_center_did_receive_response(
+  _: &Object,
+  _: Sel,
+  _: id,
+  response: objc2_user_notifications::UNNotificationResponse,
+  completion_handler: &block2::Block<dyn Fn()>,
+) {
+  trace!("Trigger `userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:`");
+
+  AppState::receive_notification_response(response);
+
+  completion_handler.call(());
+  trace!(
+    "Completed `userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:`"
+  );
 }
 
 extern "C" fn application_should_handle_reopen(
